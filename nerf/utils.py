@@ -520,7 +520,8 @@ class Trainer(object):
             self.writer = tensorboardX.SummaryWriter(os.path.join(self.workspace, "run", self.name))
 
         start_t = time.time()
-        
+
+        from .provider import NeRFDataset
         for epoch in range(self.epoch + 1, max_epochs + 1):
             self.epoch = epoch
 
@@ -532,6 +533,11 @@ class Trainer(object):
             if self.epoch % self.eval_interval == 0:
                 self.evaluate_one_epoch(valid_loader)
                 self.save_checkpoint(full=False, best=True)
+
+            # Mine: добавил отрисовку видео каждые 5 эпох
+            if epoch % 5 == 0:
+                test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+                self.test(test_loader)
 
         end_t = time.time()
 
