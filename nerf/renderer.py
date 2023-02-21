@@ -550,11 +550,11 @@ class NeRFRenderer(nn.Module):
         # mix background color
         if self.bg_radius > 0:
             # use the bg model to calculate bg_color
-            # bg_color = self.background(rays_d) # [N, 3]
-            temp_shape = self.background(rays_d)
-
-            # Mine: попробуем фон сделать черным
-            bg_color = torch.zeros(temp_shape, device=device)
+            bg_color = self.background(rays_d) # [N, 3]
+            
+            # Mine: попробуем фон сделать черным: поправить еще файл network_grid.py
+            # temp_shape = self.background(rays_d)
+            # bg_color = torch.zeros(temp_shape, device=device) # Здесь задается код цвета в формате RGB
 
         elif bg_color is None:
             bg_color = 1
