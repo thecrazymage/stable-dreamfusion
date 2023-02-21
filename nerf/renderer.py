@@ -550,10 +550,11 @@ class NeRFRenderer(nn.Module):
         # mix background color
         if self.bg_radius > 0:
             # use the bg model to calculate bg_color
-            bg_color = self.background(rays_d) # [N, 3]
+            # bg_color = self.background(rays_d) # [N, 3]
+            temp_shape = self.background(rays_d)
 
             # Mine: попробуем фон сделать черным
-            bg_color = torch.zeros((4096, 3), device=device)
+            bg_color = torch.zeros(temp_shape, device=device)
 
         elif bg_color is None:
             bg_color = 1

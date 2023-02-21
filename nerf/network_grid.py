@@ -136,10 +136,10 @@ class NeRFNetwork(NeRFRenderer):
 
         # sigmoid activation for rgb
         rgbs = torch.sigmoid(h)
-        # Mine
-        # print(rgbs.shape) # [4096, 3]
 
-        return rgbs
+        # return rgbs
+        # Mine
+        return rgbs.shape
 
     # optimizer utils
     def get_params(self, lr):
