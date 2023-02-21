@@ -137,7 +137,7 @@ class NeRFNetwork(NeRFRenderer):
         # sigmoid activation for rgb
         rgbs = torch.sigmoid(h)
         # Mine
-        print(rgbs.shape)
+        # print(rgbs.shape) # [4096, 3]
 
         return rgbs
 

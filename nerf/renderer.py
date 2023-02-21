@@ -553,7 +553,7 @@ class NeRFRenderer(nn.Module):
             bg_color = self.background(rays_d) # [N, 3]
 
             # Mine: попробуем фон сделать черным
-            # bg_color = torch.zeros_like(rays_d)
+            bg_color = torch.zeros((4096, 3), device=device)
 
         elif bg_color is None:
             bg_color = 1
