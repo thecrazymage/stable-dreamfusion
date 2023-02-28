@@ -99,6 +99,9 @@ class StableDiffusion(nn.Module):
 
         # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
         t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
+        
+        # Mine
+        self.temp_timestep = t
 
         # encode image into latents with vae, requires grad!
         latents = self.encode_imgs(pred_rgb_512)
@@ -129,6 +132,14 @@ class StableDiffusion(nn.Module):
         loss = SpecifyGradient.apply(latents, grad) 
 
         return loss 
+
+    # Mine: функция для доп шагов градинетного спуска по параметрам NeRF
+    def additional_train_step(self, text_embeddings, pred_rgb, guidance_scale=100):
+
+        pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
+
+        # encode image into latents with vae, requires grad!
+        latents = self.encode_imgs(pred_rgb_512)
 
     def produce_latents(self, text_embeddings, height=512, width=512, num_inference_steps=50, guidance_scale=7.5, latents=None):
 
