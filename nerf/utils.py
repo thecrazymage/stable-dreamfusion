@@ -842,10 +842,11 @@ class Trainer(object):
             text_z = self.text_z
 
         # Вызов Stable Diffusion
-        if not first:
-            loss = self.guidance.train_step_2(text_z, pred_rgb)
-        else:
-            loss = self.guidance.train_step_1(text_z, pred_rgb)
+        # if not first:
+        #     loss = self.guidance.train_step_2(text_z, pred_rgb)
+        # else:
+        #     loss = self.guidance.train_step_1(text_z, pred_rgb)
+        self.guidance.new_train_step(text_z, pred_rgb, first=first)
 
         # regularizations
         if self.opt.lambda_opacity > 0:
@@ -865,7 +866,7 @@ class Trainer(object):
         return pred_rgb, pred_depth, loss
 
     # Mine: новая функция обучения
-    def train_one_epoch2(self, loader, add_steps=4):
+    def train_one_epoch2(self, loader, add_steps=0):
         self.log(f"==> Start Training {self.workspace} Epoch {self.epoch}, lr={self.optimizer.param_groups[0]['lr']:.6f} ...")
 
         total_loss = 0
@@ -895,14 +896,15 @@ class Trainer(object):
             self.global_step += 1
 
             rand = random.random()
-            for i in range(add_steps):
+            for i in range(1, add_steps+1):
                 self.optimizer.zero_grad()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
-                    if i == 0:
-                        pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=True)
-                    else:
-                        pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand)
+                    # if i == 1:
+                    #     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=True)
+                    # else:
+                    #     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand)
+                    pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
 
                 self.scaler.scale(loss).backward()
                 self.post_train_step()
@@ -987,7 +989,7 @@ class Trainer(object):
                 if self.world_size > 1:
                     dist.all_reduce(loss, op=dist.ReduceOp.SUM)
                     loss = loss / self.world_size
-                    
+
                     preds_list = [torch.zeros_like(preds).to(self.device) for _ in range(self.world_size)] # [[B, ...], [B, ...], ...]
                     dist.all_gather(preds_list, preds)
                     preds = torch.cat(preds_list, dim=0)
