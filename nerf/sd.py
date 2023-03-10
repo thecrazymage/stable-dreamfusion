@@ -181,7 +181,7 @@ class StableDiffusion(nn.Module):
 
         w = (1 - self.alphas[t])
         w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
-        grad = 2 * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
+        grad = 2 * w * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
         return loss

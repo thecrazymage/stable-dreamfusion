@@ -899,7 +899,10 @@ class Trainer(object):
                 self.optimizer.zero_grad()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
-                    pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=True if i else False)
+                    if i == 0:
+                        pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=True)
+                    else:
+                        pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand)
 
                 self.scaler.scale(loss).backward()
                 self.post_train_step()
