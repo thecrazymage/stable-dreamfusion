@@ -865,8 +865,8 @@ class Trainer(object):
 
         return pred_rgb, pred_depth, loss
 
-    # Mine: новая функция обучения
-    def train_one_epoch2(self, loader, add_steps=0):
+    # Mine: новая функция обучения, add_steps как минимум 1
+    def train_one_epoch2(self, loader, add_steps=1):
         self.log(f"==> Start Training {self.workspace} Epoch {self.epoch}, lr={self.optimizer.param_groups[0]['lr']:.6f} ...")
 
         total_loss = 0
