@@ -196,6 +196,9 @@ class Trainer(object):
         self.scheduler_update_every_step = scheduler_update_every_step
         self.device = device if device is not None else torch.device(f'cuda:{local_rank}' if torch.cuda.is_available() else 'cpu')
         self.console = Console()
+
+        # Mine: количество дополнительных шагов
+        self.add_steps = opt.add_steps
     
         model.to(self.device)
         if self.world_size > 1:
@@ -866,7 +869,7 @@ class Trainer(object):
         return pred_rgb, pred_depth, loss
 
     # Mine: новая функция обучения, add_steps как минимум 1
-    def train_one_epoch2(self, loader, add_steps=1):
+    def train_one_epoch2(self, loader):
         self.log(f"==> Start Training {self.workspace} Epoch {self.epoch}, lr={self.optimizer.param_groups[0]['lr']:.6f} ...")
 
         total_loss = 0
@@ -896,7 +899,7 @@ class Trainer(object):
             self.global_step += 1
 
             rand = random.random()
-            for i in range(1, add_steps+1):
+            for i in range(1, self.add_steps+1):
                 self.optimizer.zero_grad()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):

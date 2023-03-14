@@ -48,6 +48,8 @@ if __name__ == '__main__':
     parser.add_argument('--density_thresh', type=float, default=0.1, help="threshold for density grid to be occupied")
     parser.add_argument('--blob_density', type=float, default=10, help="max (center) density for the density blob")
     parser.add_argument('--blob_radius', type=float, default=0.5, help="control the radius for the density blob")
+    # Mine: добавил в качестве аргумента то, сколько шагов мы делаем, после одног вычисление u-net
+    parser.add_argument('--add_steps', type=int, default=1, help="Additional steps after one u-net calculation")
     # network backbone
     parser.add_argument('--fp16', action='store_true', help="use amp mixed precision training")
     parser.add_argument('--backbone', type=str, default='grid', choices=['grid', 'vanilla'], help="nerf backbone")
