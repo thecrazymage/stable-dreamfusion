@@ -849,7 +849,7 @@ class Trainer(object):
         #     loss = self.guidance.train_step_2(text_z, pred_rgb)
         # else:
         #     loss = self.guidance.train_step_1(text_z, pred_rgb)
-        self.guidance.new_train_step(text_z, pred_rgb, first=first)
+        loss = self.guidance.new_train_step(text_z, pred_rgb, first=first)
 
         # regularizations
         if self.opt.lambda_opacity > 0:
