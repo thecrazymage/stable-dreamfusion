@@ -198,7 +198,7 @@ class Trainer(object):
         self.console = Console()
 
         # Mine: количество дополнительных шагов
-        self.add_steps = opt.add_steps
+        self.add_steps = opt.steps1
     
         model.to(self.device)
         if self.world_size > 1:
