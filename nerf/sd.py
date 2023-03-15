@@ -201,7 +201,7 @@ class StableDiffusion(nn.Module):
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
 
             # w = (1 - self.alphas[t])
-            w = 1 / self.alpha[t] / 2
+            w = 1 / self.alpha[t]
             w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
             grad = 2 * w * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
         else:
@@ -228,7 +228,7 @@ class StableDiffusion(nn.Module):
             w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
             # grad = w * (noise_pred - noise)
             # grad = 2 * w * (noise_pred - noise)
-            w = 1 / self.alpha[t] / 2
+            w = 1 / self.alpha[t]
             grad = 2 * w * w1 * (noise_pred - noise)
 
         grad = torch.nan_to_num(grad)
