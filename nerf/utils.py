@@ -532,6 +532,10 @@ class Trainer(object):
 
             self.train_one_epoch2(train_loader)
 
+            print(f"\nAverage time of render working = {np.mean(self.render_times)}")
+            print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
+            print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
+
             if self.workspace is not None and self.local_rank == 0:
                 self.save_checkpoint(full=True, best=False)
 
@@ -543,10 +547,6 @@ class Trainer(object):
             # if epoch % 5 == 0:
             test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
             self.test(test_loader)
-
-            print(f"\nAverage time of render working = {np.mean(self.render_times)}")
-            print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
-            print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
 
         end_t = time.time()
 
