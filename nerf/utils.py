@@ -199,6 +199,7 @@ class Trainer(object):
 
         # Mine: количество дополнительных шагов
         self.add_steps = opt.steps1
+        self.render_times = []
     
         model.to(self.device)
         if self.world_size > 1:
@@ -368,12 +369,7 @@ class Trainer(object):
                 ambient_ratio = 0.1
 
         bg_color = torch.rand((B * N, 3), device=rays_o.device) # pixel-wise random
-
-        start_render = time.time()
         outputs = self.model.render(rays_o, rays_d, staged=False, perturb=True, bg_color=bg_color, ambient_ratio=ambient_ratio, shading=shading, force_all_rays=True, **vars(self.opt))
-        end_render = time.time()
-        print(f"\nNeRF render works {end_render - start_render}")
-        
         pred_rgb = outputs['image'].reshape(B, H, W, 3).permute(0, 3, 1, 2).contiguous() # [1, 3, H, W]
         pred_depth = outputs['depth'].reshape(B, 1, H, W)
         
@@ -547,6 +543,10 @@ class Trainer(object):
             # if epoch % 5 == 0:
             test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
             self.test(test_loader)
+
+        print(f"\nAverage time of render working = {np.mean(self.render_times)}")
+        print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
+        print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
 
         end_t = time.time()
 
@@ -842,7 +842,8 @@ class Trainer(object):
         start_render = time.time()
         outputs = self.model.render(rays_o, rays_d, staged=False, perturb=True, bg_color=bg_color, ambient_ratio=ambient_ratio, shading=shading, force_all_rays=True, **vars(self.opt))
         end_render = time.time()
-        print(f"\nNeRF render works {end_render - start_render}")
+        # print(f"\nNeRF render works {end_render - start_render}")
+        self.render_times.append(end_render - start_render)
 
         pred_rgb = outputs['image'].reshape(B, H, W, 3).permute(0, 3, 1, 2).contiguous() # [1, 3, H, W]
         pred_depth = outputs['depth'].reshape(B, 1, H, W)
