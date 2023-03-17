@@ -372,7 +372,7 @@ class Trainer(object):
         start_render = time.time()
         outputs = self.model.render(rays_o, rays_d, staged=False, perturb=True, bg_color=bg_color, ambient_ratio=ambient_ratio, shading=shading, force_all_rays=True, **vars(self.opt))
         end_render = time.time()
-        print(f"NeRF render works {start_render - end_render}")
+        print(f"\nNeRF render works {end_render - start_render}")
         
         pred_rgb = outputs['image'].reshape(B, H, W, 3).permute(0, 3, 1, 2).contiguous() # [1, 3, H, W]
         pred_depth = outputs['depth'].reshape(B, 1, H, W)

@@ -194,7 +194,7 @@ class StableDiffusion(nn.Module):
         start_encoder = time.time()
         latents = self.encode_imgs(pred_rgb_512)
         end_encoder = time.time()
-        print(f"Encoder works {start_encoder - end_encoder}")
+        print(f"\nEncoder works {end_encoder - start_encoder}")
 
         if not first:
             t = self.temp_timestep
@@ -221,7 +221,7 @@ class StableDiffusion(nn.Module):
                 start_unet = time.time()
                 noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
                 end_unet = time.time()
-                print(f"U-net works {start_unet - end_unet}")
+                print(f"\nU-net works {end_unet - start_unet}")
 
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
