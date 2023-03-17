@@ -544,9 +544,9 @@ class Trainer(object):
             test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
             self.test(test_loader)
 
-        print(f"\nAverage time of render working = {np.mean(self.render_times)}")
-        print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
-        print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
+            print(f"\nAverage time of render working = {np.mean(self.render_times)}")
+            print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
+            print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
 
         end_t = time.time()
 
