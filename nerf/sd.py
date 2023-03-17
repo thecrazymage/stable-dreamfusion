@@ -189,7 +189,12 @@ class StableDiffusion(nn.Module):
     def new_train_step(self, text_embeddings, pred_rgb, guidance_scale=100, first=False):
 
         pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
+
+        import time
+        start_encoder = time.time()
         latents = self.encode_imgs(pred_rgb_512)
+        end_encoder = time.time()
+        print(f"Encoder works {start_encoder - end_encoder}")
 
         if not first:
             t = self.temp_timestep
@@ -212,7 +217,11 @@ class StableDiffusion(nn.Module):
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
 
                 latent_model_input = torch.cat([latents_noisy] * 2)
+
+                start_unet = time.time()
                 noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+                end_unet = time.time()
+                print(f"U-net works {start_unet - end_unet}")
 
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
