@@ -537,7 +537,7 @@ class Trainer(object):
             print(f"\nAverage time of render working = {np.mean(self.render_times)}")
             print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
             print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
-            print(f"Train one epoch = {end_train_one_epoch2 - start_train_one_epoch2}")
+            print(f"Train one epoch 2 = {end_train_one_epoch2 - start_train_one_epoch2}")
 
             if self.workspace is not None and self.local_rank == 0:
                 self.save_checkpoint(full=True, best=False)
@@ -548,9 +548,8 @@ class Trainer(object):
 
             # Mine: добавил отрисовку видео каждые 5 эпох
             # if epoch % 5 == 0:
-            
-            test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
-            self.test(test_loader)
+            # test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+            # self.test(test_loader)
 
         end_t = time.time()
 
@@ -918,16 +917,18 @@ class Trainer(object):
                 self.optimizer.zero_grad()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
-                    # if i == 1:
-                    #     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=True)
-                    # else:
-                    #     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand)
+                    start_train_step2 = time.time()
                     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
-
+                    end_train_step2 = time.time()
+                    print(f"Train step 2 = {end_train_step2 - start_train_step2}")
+                
+                start_backward = time.time()
                 self.scaler.scale(loss).backward()
                 self.post_train_step()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+                end_backward = time.time()
+                print(f"Backward = {end_backward - start_backward}")
 
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
