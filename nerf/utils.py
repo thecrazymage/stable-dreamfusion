@@ -920,7 +920,7 @@ class Trainer(object):
                     start_train_step2 = time.time()
                     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
                     end_train_step2 = time.time()
-                    print(f"\nTrain step 2 time = {end_train_step2 - start_train_step2}")
+                    # print(f"\nTrain step 2 time = {end_train_step2 - start_train_step2}")
                 
                 start_backward = time.time()
                 self.scaler.scale(loss).backward()
@@ -928,7 +928,7 @@ class Trainer(object):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 end_backward = time.time()
-                print(f"Backward time = {end_backward - start_backward}")
+                # print(f"Backward time = {end_backward - start_backward}")
 
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
@@ -950,6 +950,9 @@ class Trainer(object):
                 else:
                     pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
                 pbar.update(loader.batch_size)
+        
+        print(f"\nTrain step 2 time = {end_train_step2 - start_train_step2}")
+        print(f"Backward time = {end_backward - start_backward}")
 
         if self.ema is not None:
             self.ema.update()
