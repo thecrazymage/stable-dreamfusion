@@ -530,11 +530,14 @@ class Trainer(object):
         for epoch in range(self.epoch + 1, max_epochs + 1):
             self.epoch = epoch
 
+            start_train_one_epoch2 = time.time()
             self.train_one_epoch2(train_loader)
+            end_train_one_epoch2 = time.time()
 
             print(f"\nAverage time of render working = {np.mean(self.render_times)}")
             print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
             print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
+            print(f"Train one epoch = {end_train_one_epoch2 - start_train_one_epoch2}")
 
             if self.workspace is not None and self.local_rank == 0:
                 self.save_checkpoint(full=True, best=False)
@@ -545,6 +548,7 @@ class Trainer(object):
 
             # Mine: добавил отрисовку видео каждые 5 эпох
             # if epoch % 5 == 0:
+            
             test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
             self.test(test_loader)
 
