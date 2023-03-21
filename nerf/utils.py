@@ -538,9 +538,9 @@ class Trainer(object):
                 self.save_checkpoint(full=False, best=True)
 
             # Mine: добавил отрисовку видео каждые 5 эпох
-            # if epoch % 5 == 0:
-            test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
-            self.test(test_loader)
+            if epoch % 5 == 0:
+                test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+                self.test(test_loader)
 
         end_t = time.time()
 
