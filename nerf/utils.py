@@ -537,7 +537,7 @@ class Trainer(object):
             print(f"\nAverage time of render working = {np.mean(self.render_times)}")
             print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
             print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
-            print(f"Train one epoch 2 = {end_train_one_epoch2 - start_train_one_epoch2}")
+            print(f"Train one epoch 2 time = {end_train_one_epoch2 - start_train_one_epoch2}\n")
 
             if self.workspace is not None and self.local_rank == 0:
                 self.save_checkpoint(full=True, best=False)
@@ -920,7 +920,7 @@ class Trainer(object):
                     start_train_step2 = time.time()
                     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
                     end_train_step2 = time.time()
-                    print(f"Train step 2 = {end_train_step2 - start_train_step2}")
+                    print(f"\nTrain step 2 time = {end_train_step2 - start_train_step2}")
                 
                 start_backward = time.time()
                 self.scaler.scale(loss).backward()
@@ -928,7 +928,7 @@ class Trainer(object):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 end_backward = time.time()
-                print(f"Backward = {end_backward - start_backward}")
+                print(f"Backward time = {end_backward - start_backward}")
 
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
