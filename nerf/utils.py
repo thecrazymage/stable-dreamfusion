@@ -859,10 +859,6 @@ class Trainer(object):
             text_z = self.text_z
 
         # Вызов Stable Diffusion
-        # if not first:
-        #     loss = self.guidance.train_step_2(text_z, pred_rgb)
-        # else:
-        #     loss = self.guidance.train_step_1(text_z, pred_rgb)
         loss = self.guidance.new_train_step(text_z, pred_rgb, first=first)
 
         # regularizations
@@ -903,8 +899,8 @@ class Trainer(object):
 
         self.local_step = 0
 
-        time_arr11, time_arr12, time_arr2, time_arr3, time_arr4 = [], [], [], [], []
-        time_arr5 = []
+        time_arr1, time_arr2, time_arr3, time_arr4, time_arr5 = [], [], [], [], []
+        time_arr6, time_arr7, time_arr8, time_arr9, time_arr10 = [], [], [], [], []
         for data in loader:
             # update grid every 16 steps
             if self.model.cuda_ray and self.global_step % self.opt.update_extra_interval == 0:
@@ -918,37 +914,46 @@ class Trainer(object):
             start_for = time.time() # For тоже надо разбить на два, потому что на разных шагах, разное время.
             for i in range(1, self.add_steps+1):
                 start_zero_grad = time.time()
+
                 self.optimizer.zero_grad()
+
                 end_zero_grad = time.time()
+                time_arr1.append(start_zero_grad - end_zero_grad)
+
+                start_with = time.time()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
                     start_train_step2 = time.time()
                     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
                     end_train_step2 = time.time()
                     if bool(not (i-1)):
-                        time_arr11.append(end_train_step2 - start_train_step2)
+                        time_arr2.append(end_train_step2 - start_train_step2)
                     else:
-                        time_arr12.append(end_train_step2 - start_train_step2)
-                    # print(f"\nTrain step 2 time = {end_train_step2 - start_train_step2}")
-                
+                        time_arr3.append(end_train_step2 - start_train_step2)
+
+                end_with = time.time()
+                time_arr4.append(end_with - start_with)
+
                 start_backward = time.time()
+
                 self.scaler.scale(loss).backward()
                 self.post_train_step()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
+
                 end_backward = time.time()
-                time_arr2.append(end_backward - start_backward)
-                # print(f"Backward time = {end_backward - start_backward}")
+                time_arr5.append(end_backward - start_backward)
 
                 start_scheduler = time.time()
+
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
+
                 end_scheduler = time.time()
+                time_arr6.append(end_scheduler - start_scheduler)
 
             end_for = time.time()
-            time_arr3.append(end_for - start_for)
-            time_arr4.append(end_scheduler - start_scheduler)
-            time_arr5.append(end_zero_grad - start_zero_grad)
+            time_arr6.append(end_scheduler - start_scheduler)
 
             loss_val = loss.item()
             total_loss += loss_val
@@ -968,12 +973,12 @@ class Trainer(object):
                     pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
                 pbar.update(loader.batch_size)
 
-        print(f"\n\nTrain step 2 0 step time = {np.mean(time_arr11)}")
-        print(f"\n\nTrain step 2 add steps time = {np.mean(time_arr12)}")
-        print(f"Backward time = {np.mean(time_arr2)}")
-        print(f"Scheduler time = {np.mean(time_arr4)}")
-        print(f"Zero grad time = {np.mean(time_arr5)}")
-        print(f"For time = {np.mean(time_arr3)}")
+        print(f"\n\nTrain step 2 0 step time = {np.mean(time_arr)}")
+        print(f"\n\nTrain step 2 add steps time = {np.mean(time_arr)}")
+        print(f"Backward time = {np.mean(time_arr)}")
+        print(f"Scheduler time = {np.mean(time_arr)}")
+        print(f"Zero grad time = {np.mean(time_arr)}")
+        print(f"For time = {np.mean(time_arr)}")
 
         if self.ema is not None:
             self.ema.update()
