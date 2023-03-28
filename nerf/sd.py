@@ -203,8 +203,8 @@ class StableDiffusion(nn.Module):
             w = (1 - self.alphas[t])
             # w = 1 / self.alpha[t] / (1 - self.alpha[t]) / 2
             w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
-            # grad = 1e-3 * 2 * w * w1 * ((latents_noisy - first_latents_noisy) / w1 - (noise - noise_pred))
-            grad = 2 * w * w1 * ((latents_noisy - first_latents_noisy) / w1 - (noise - noise_pred))
+            # grad = 1e-3 * 2 * w * ((latents_noisy - first_latents_noisy) - w1 * (noise - noise_pred))
+            grad = 2 * w * ((latents_noisy - first_latents_noisy) - w1 * (noise - noise_pred))
         else:
             t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
 
