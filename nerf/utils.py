@@ -913,13 +913,16 @@ class Trainer(object):
             rand = random.random()
             start_for = time.time() # For тоже надо разбить на два, потому что на разных шагах, разное время.
             for i in range(1, self.add_steps+1):
+                # Start time for optimizer
                 start_zero_grad = time.time()
 
                 self.optimizer.zero_grad()
 
                 end_zero_grad = time.time()
                 time_arr1.append(start_zero_grad - end_zero_grad)
+                # End time for optimizer
 
+                # Start time for with
                 start_with = time.time()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
@@ -933,7 +936,9 @@ class Trainer(object):
 
                 end_with = time.time()
                 time_arr4.append(end_with - start_with)
+                # End time for with
 
+                # Start time for backward
                 start_backward = time.time()
 
                 self.scaler.scale(loss).backward()
@@ -943,7 +948,9 @@ class Trainer(object):
 
                 end_backward = time.time()
                 time_arr5.append(end_backward - start_backward)
+                # End time for backward
 
+                # Start time for scheduler
                 start_scheduler = time.time()
 
                 if self.scheduler_update_every_step:
@@ -951,18 +958,22 @@ class Trainer(object):
 
                 end_scheduler = time.time()
                 time_arr6.append(end_scheduler - start_scheduler)
+                # End time for scheduler
 
             end_for = time.time()
-            time_arr6.append(end_scheduler - start_scheduler)
+            time_arr7.append(end_scheduler - start_scheduler)
+
+            # Start time for loss
+            start_loss = time.time()
 
             loss_val = loss.item()
             total_loss += loss_val
 
-            if self.local_rank == 0:
-                # if self.report_metric_at_train:
-                #     for metric in self.metrics:
-                #         metric.update(preds, truths)
+            end_loss = time.time()
+            time_arr8.append(end_loss - start_loss)
+            # End time for loss
 
+            if self.local_rank == 0:
                 if self.use_tensorboardX:
                     self.writer.add_scalar("train/loss", loss_val, self.global_step)
                     self.writer.add_scalar("train/lr", self.optimizer.param_groups[0]['lr'], self.global_step)
@@ -973,12 +984,13 @@ class Trainer(object):
                     pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
                 pbar.update(loader.batch_size)
 
-        print(f"\n\nTrain step 2 0 step time = {np.mean(time_arr)}")
-        print(f"\n\nTrain step 2 add steps time = {np.mean(time_arr)}")
-        print(f"Backward time = {np.mean(time_arr)}")
-        print(f"Scheduler time = {np.mean(time_arr)}")
-        print(f"Zero grad time = {np.mean(time_arr)}")
-        print(f"For time = {np.mean(time_arr)}")
+        print(f"\n\nOptimizer zero grad time = {np.mean(time_arr1)}")
+        print(f"train_step2() 0 step time = {np.mean(time_arr2)}")
+        print(f"train_step2() 1 step time = {np.mean(time_arr3)}")
+        print(f"With cuda.amp.autocast time = {np.mean(time_arr4)}")
+        print(f"Backward time = {np.mean(time_arr5)}")
+        print(f"Scheduler time = {np.mean(time_arr6)}")
+        print(f"For time = {np.mean(time_arr7)}")
 
         if self.ema is not None:
             self.ema.update()
