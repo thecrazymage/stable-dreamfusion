@@ -191,11 +191,29 @@ class StableDiffusion(nn.Module):
         pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
         latents = self.encode_imgs(pred_rgb_512)
 
-        # if not first:
-        #     with torch.no_grad():
-        #         latents_noisy = self.scheduler.add_noise(latents, self.noise, self.timestep)
-        # else:
-        if first:
+        if not first:
+            t = self.temp_timestep
+            noise = self.temp_noise
+            noise_pred = self.temp_noise_pred
+            first_latents = self.first_latents
+            with torch.no_grad():
+                first_latents_noisy = self.scheduler.add_noise(first_latents, noise, t)
+                latents_noisy = self.scheduler.add_noise(latents, noise, t)
+
+            # Loss 1
+            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+            # grad = (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
+
+            # Loss 2
+            # w = 1 - self.alphas[t]
+            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+            # grad = w * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
+
+            # Loss 3
+            w = 1 - self.alphas[t]
+            w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+            grad = w * torch.sqrt(self.alphas[t]) *(latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
+        else:
             t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
 
             with torch.no_grad():
@@ -209,15 +227,21 @@ class StableDiffusion(nn.Module):
             noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # Сохраним текущие важные показатели
-            self.noise = noise
-            self.timestep = t
-            self.latents_zero = latents
-            self.noise_pred = noise_pred
+            self.temp_noise = noise
+            self.temp_timestep = t
+            self.first_latents = latents
+            self.temp_noise_pred = noise_pred
 
-        w = (1 - self.alphas[t]) * torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
-        w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+            # Loss 1
+            # grad = (noise_pred - noise)
 
-        grad = w * (latents - self.latents_zero + w1 * (self.noise - self.noise_pred))
+            # Loss 2
+            # w = 1 - self.alphas[t]
+            # grad = w * (noise_pred - noise)
+
+            # Loss 3
+            w = 1 - self.alphas[t]
+            grad = w * torch.sqrt(self.alphas[t]) * (noise_pred - noise)
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
@@ -320,7 +344,3 @@ if __name__ == '__main__':
     # visualize image
     plt.imshow(imgs[0])
     plt.show()
-
-
-
-
