@@ -210,9 +210,9 @@ class StableDiffusion(nn.Module):
             # grad = w * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
 
             # Loss 3
-            w = 1 - self.alphas[t]
-            w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
-            grad = w * torch.sqrt(self.alphas[t]) *(latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
+            # w = 1 - self.alphas[t]
+            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+            # grad = w * torch.sqrt(self.alphas[t]) *(latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
         else:
             t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
 
@@ -240,8 +240,12 @@ class StableDiffusion(nn.Module):
             # grad = w * (noise_pred - noise)
 
             # Loss 3
-            w = 1 - self.alphas[t]
-            grad = w * torch.sqrt(self.alphas[t]) * (noise_pred - noise)
+            # w = 1 - self.alphas[t]
+            # grad = w * torch.sqrt(self.alphas[t]) * (noise_pred - noise)
+        
+        w = (1 - self.alphas[t]) * torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
+        w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+        grad = w * (latents - self.first_latents + w1 * (self.temp_noise - self.temp_noise_pred))
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
