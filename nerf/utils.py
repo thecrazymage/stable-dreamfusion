@@ -950,7 +950,9 @@ class Trainer(object):
                 start_backward = time.time()
 
                 self.scaler.scale(loss).backward()
+                start_posttrain = time.time()
                 self.post_train_step()
+                end_posttrain = time.time()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
 
@@ -959,6 +961,11 @@ class Trainer(object):
                     time_arr5[0].append(end_backward - start_backward)
                 else:
                     time_arr5[1].append(end_backward - start_backward)
+
+                if bool(not (i-1)):
+                    time_arr8[0].append(end_posttrain - start_posttrain)
+                else:
+                    time_arr8[1].append(end_posttrain - start_posttrain)
                 # End time for backward
 
                 # Start time for scheduler
@@ -1002,6 +1009,8 @@ class Trainer(object):
         print(f"With cuda.amp.autocast time (1 step) = {np.mean(time_arr4[1])}")
         print(f"Backward time (0 step) = {np.mean(time_arr5[0])}")
         print(f"Backward time (1 step) = {np.mean(time_arr5[1])}")
+        print(f"Backward post_train step time (0 step) = {np.mean(time_arr8[0])}")
+        print(f"Backward post_train step time (1 step) = {np.mean(time_arr8[1])}")
         print(f"Scheduler time (0 step) = {np.mean(time_arr6[0])}")
         print(f"Scheduler time (1 step) = {np.mean(time_arr6[1])}")
         print(f"For time (0 step) = {np.mean(time_arr7[0])}")
