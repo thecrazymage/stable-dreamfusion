@@ -70,6 +70,10 @@ class StableDiffusion(nn.Module):
         self.alphas = self.scheduler.alphas_cumprod.to(self.device) # for convenience
         # Mine
         self.alpha = self.scheduler.alphas.to(self.device)
+        self.temp_noise = None
+        self.temp_timestep = None
+        self.first_latents = None
+        self.temp_noise_pred = None
 
         print(f'[INFO] loaded stable diffusion!')
 
@@ -191,29 +195,7 @@ class StableDiffusion(nn.Module):
         pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
         latents = self.encode_imgs(pred_rgb_512)
 
-        if not first:
-            t = self.temp_timestep
-            noise = self.temp_noise
-            noise_pred = self.temp_noise_pred
-            first_latents = self.first_latents
-            with torch.no_grad():
-                first_latents_noisy = self.scheduler.add_noise(first_latents, noise, t)
-                latents_noisy = self.scheduler.add_noise(latents, noise, t)
-
-            # Loss 1
-            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
-            # grad = (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
-
-            # Loss 2
-            # w = 1 - self.alphas[t]
-            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
-            # grad = w * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
-
-            # Loss 3
-            # w = 1 - self.alphas[t]
-            # w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
-            # grad = w * torch.sqrt(self.alphas[t]) *(latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
-        else:
+        if first:
             t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
 
             with torch.no_grad():
@@ -223,8 +205,8 @@ class StableDiffusion(nn.Module):
                 latent_model_input = torch.cat([latents_noisy] * 2)
                 noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
 
-            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # Сохраним текущие важные показатели
             self.temp_noise = noise
@@ -232,20 +214,17 @@ class StableDiffusion(nn.Module):
             self.first_latents = latents
             self.temp_noise_pred = noise_pred
 
-            # Loss 1
-            # grad = (noise_pred - noise)
+        t = self.temp_timestep
+        noise = self.temp_noise
+        noise_pred = self.temp_noise_pred
+        first_latents = self.first_latents
+        with torch.no_grad():
+            # first_latents_noisy = self.scheduler.add_noise(first_latents, noise, t)
+            latents_noisy = self.scheduler.add_noise(latents, noise, t)
 
-            # Loss 2
-            # w = 1 - self.alphas[t]
-            # grad = w * (noise_pred - noise)
-
-            # Loss 3
-            # w = 1 - self.alphas[t]
-            # grad = w * torch.sqrt(self.alphas[t]) * (noise_pred - noise)
-        
         w = (1 - self.alphas[t]) * torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
         w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
-        grad = w * (latents - self.first_latents + w1 * (self.temp_noise - self.temp_noise_pred))
+        grad = w * (latents - first_latents + w1 * (noise - noise_pred))
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
