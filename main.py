@@ -43,6 +43,8 @@ if __name__ == '__main__':
     parser.add_argument('--jitter_pose', action='store_true', help="add jitters to the randomly sampled camera poses")
     parser.add_argument('--uniform_sphere_rate', type=float, default=0.5, help="likelihood of sampling camera location uniformly on the sphere surface area")
     # model options
+    # Mine: добавил в качестве аргумента то, сколько шагов мы делаем, после одног вычисление u-net
+    parser.add_argument('--steps', type=int, default=1, help="Steps for one u-net calculation")
     parser.add_argument('--bg_radius', type=float, default=1.4, help="if positive, use a background model at sphere(bg_radius)")
     parser.add_argument('--density_activation', type=str, default='softplus', choices=['softplus', 'exp'], help="density activation function")
     parser.add_argument('--density_thresh', type=float, default=0.1, help="threshold for density grid to be occupied")

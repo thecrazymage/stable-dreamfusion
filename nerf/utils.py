@@ -196,6 +196,9 @@ class Trainer(object):
         self.scheduler_update_every_step = scheduler_update_every_step
         self.device = device if device is not None else torch.device(f'cuda:{local_rank}' if torch.cuda.is_available() else 'cpu')
         self.console = Console()
+
+        # Mine: количество дополнительных шагов
+        self.add_steps = opt.steps
     
         model.to(self.device)
         if self.world_size > 1:
@@ -520,11 +523,12 @@ class Trainer(object):
             self.writer = tensorboardX.SummaryWriter(os.path.join(self.workspace, "run", self.name))
 
         start_t = time.time()
-        
+
+        from .provider import NeRFDataset
         for epoch in range(self.epoch + 1, max_epochs + 1):
             self.epoch = epoch
 
-            self.train_one_epoch(train_loader)
+            self.train_one_epoch2(train_loader)
 
             if self.workspace is not None and self.local_rank == 0:
                 self.save_checkpoint(full=True, best=False)
@@ -532,6 +536,11 @@ class Trainer(object):
             if self.epoch % self.eval_interval == 0:
                 self.evaluate_one_epoch(valid_loader)
                 self.save_checkpoint(full=False, best=True)
+            
+            # Mine: добавил отрисовку видео каждые 5 эпох
+            if epoch % 5 == 0:
+                test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+                self.test(test_loader)
 
         end_t = time.time()
 
@@ -764,6 +773,149 @@ class Trainer(object):
                 #     for metric in self.metrics:
                 #         metric.update(preds, truths)
                         
+                if self.use_tensorboardX:
+                    self.writer.add_scalar("train/loss", loss_val, self.global_step)
+                    self.writer.add_scalar("train/lr", self.optimizer.param_groups[0]['lr'], self.global_step)
+
+                if self.scheduler_update_every_step:
+                    pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f}), lr={self.optimizer.param_groups[0]['lr']:.6f}")
+                else:
+                    pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
+                pbar.update(loader.batch_size)
+
+        if self.ema is not None:
+            self.ema.update()
+
+        average_loss = total_loss / self.local_step
+        self.stats["loss"].append(average_loss)
+
+        if self.local_rank == 0:
+            pbar.close()
+            if self.report_metric_at_train:
+                for metric in self.metrics:
+                    self.log(metric.report(), style="red")
+                    if self.use_tensorboardX:
+                        metric.write(self.writer, self.epoch, prefix="train")
+                    metric.clear()
+
+        if not self.scheduler_update_every_step:
+            if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                self.lr_scheduler.step(average_loss)
+            else:
+                self.lr_scheduler.step()
+
+        self.log(f"==> Finished Epoch {self.epoch}.")
+
+    # Mine: новая функция обучения
+    def train_step2(self, data, rand=None, first=False):
+
+        rays_o = data['rays_o'] # [B, N, 3]
+        rays_d = data['rays_d'] # [B, N, 3]
+
+        B, N = rays_o.shape[:2]
+        H, W = data['H'], data['W']
+
+        if self.global_step < self.opt.albedo_iters:
+            shading = 'albedo'
+            ambient_ratio = 1.0
+        else:
+            if not rand:
+                rand = random.random()
+            if rand > 0.8:
+                shading = 'albedo'
+                ambient_ratio = 1.0
+            elif rand > 0.4:
+                shading = 'textureless'
+                ambient_ratio = 0.1
+            else:
+                shading = 'lambertian'
+                ambient_ratio = 0.1
+
+        bg_color = torch.rand((B * N, 3), device=rays_o.device) # pixel-wise random
+        outputs = self.model.render(rays_o, rays_d, staged=False, perturb=True, bg_color=bg_color, ambient_ratio=ambient_ratio, shading=shading, force_all_rays=True, **vars(self.opt))
+        pred_rgb = outputs['image'].reshape(B, H, W, 3).permute(0, 3, 1, 2).contiguous() # [1, 3, H, W]
+        pred_depth = outputs['depth'].reshape(B, 1, H, W)
+
+        # text embeddings
+        if self.opt.dir_text:
+            dirs = data['dir'] # [B,]
+            text_z = self.text_z[dirs]
+        else:
+            text_z = self.text_z
+
+        # Вызов Stable Diffusion
+        loss = self.guidance.new_train_step(text_z, pred_rgb, first=first)
+
+        # regularizations
+        if self.opt.lambda_opacity > 0:
+            loss_opacity = (outputs['weights_sum'] ** 2).mean()
+            loss = loss + self.opt.lambda_opacity * loss_opacity
+
+        if self.opt.lambda_entropy > 0:
+            alphas = outputs['weights_sum'].clamp(1e-5, 1 - 1e-5)
+            # alphas = alphas ** 2 # skewed entropy, favors 0 over 1
+            loss_entropy = (- alphas * torch.log2(alphas) - (1 - alphas) * torch.log2(1 - alphas)).mean()
+            loss = loss + self.opt.lambda_entropy * loss_entropy
+
+        if self.opt.lambda_orient > 0 and 'loss_orient' in outputs:
+            loss_orient = outputs['loss_orient']
+            loss = loss + self.opt.lambda_orient * loss_orient
+
+        return pred_rgb, pred_depth, loss
+
+    # Mine: новая функция обучения, add_steps как минимум 1
+    def train_one_epoch2(self, loader):
+        self.log(f"==> Start Training {self.workspace} Epoch {self.epoch}, lr={self.optimizer.param_groups[0]['lr']:.6f} ...")
+
+        total_loss = 0
+        if self.local_rank == 0 and self.report_metric_at_train:
+            for metric in self.metrics:
+                metric.clear()
+
+        self.model.train()
+
+        # distributedSampler: must call set_epoch() to shuffle indices across multiple epochs
+        # ref: https://pytorch.org/docs/stable/data.html
+        if self.world_size > 1:
+            loader.sampler.set_epoch(self.epoch)
+
+        if self.local_rank == 0:
+            pbar = tqdm.tqdm(total=len(loader) * loader.batch_size, bar_format='{desc}: {percentage:3.0f}% {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]')
+
+        self.local_step = 0
+
+        for data in loader:
+            # update grid every 16 steps
+            if self.model.cuda_ray and self.global_step % self.opt.update_extra_interval == 0:
+                with torch.cuda.amp.autocast(enabled=self.fp16):
+                    self.model.update_extra_state()
+
+            self.local_step += 1
+            self.global_step += 1
+
+            rand = random.random()
+            for i in range(1, self.add_steps+1):
+                self.optimizer.zero_grad()
+
+                with torch.cuda.amp.autocast(enabled=self.fp16):
+                    pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
+
+                self.scaler.scale(loss).backward()
+                self.post_train_step()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+
+                if self.scheduler_update_every_step:
+                    self.lr_scheduler.step()
+
+            loss_val = loss.item()
+            total_loss += loss_val
+
+            if self.local_rank == 0:
+                # if self.report_metric_at_train:
+                #     for metric in self.metrics:
+                #         metric.update(preds, truths)
+
                 if self.use_tensorboardX:
                     self.writer.add_scalar("train/loss", loss_val, self.global_step)
                     self.writer.add_scalar("train/lr", self.optimizer.param_groups[0]['lr'], self.global_step)

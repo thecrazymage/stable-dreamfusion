@@ -69,6 +69,12 @@ class StableDiffusion(nn.Module):
         self.min_step = int(self.num_train_timesteps * 0.02)
         self.max_step = int(self.num_train_timesteps * 0.98)
         self.alphas = self.scheduler.alphas_cumprod.to(self.device) # for convenience
+        # Mine
+        self.alpha = self.scheduler.alphas.to(self.device)
+        self.temp_noise = None
+        self.temp_timestep = None
+        self.first_latents = None
+        self.temp_noise_pred = None
 
         print(f'[INFO] loaded stable diffusion!')
 
@@ -103,6 +109,7 @@ class StableDiffusion(nn.Module):
 
         # encode image into latents with vae, requires grad!
         latents = self.encode_imgs(pred_rgb_512)
+        # Mine: тут возможно тоже надо убрать градиенты
 
         # predict the noise residual with unet, NO grad!
         with torch.no_grad():
@@ -129,7 +136,47 @@ class StableDiffusion(nn.Module):
         # since we omitted an item in grad, we need to use the custom function to specify the gradient
         loss = SpecifyGradient.apply(latents, grad) 
 
-        return loss 
+        return loss
+
+    def new_train_step(self, text_embeddings, pred_rgb, guidance_scale=100, first=False):
+
+        pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
+        latents = self.encode_imgs(pred_rgb_512)
+
+        if first:
+            t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
+
+            with torch.no_grad():
+                noise = torch.randn_like(latents)
+                latents_noisy = self.scheduler.add_noise(latents, noise, t)
+
+                latent_model_input = torch.cat([latents_noisy] * 2)
+                noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+
+                noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+            # Сохраним текущие важные показатели
+            self.temp_noise = noise
+            self.temp_timestep = t
+            self.first_latents = latents.clone().detach()
+            self.temp_noise_pred = noise_pred
+
+        t = self.temp_timestep
+        noise = self.temp_noise
+        noise_pred = self.temp_noise_pred
+        first_latents = self.first_latents
+
+        w = (1 - self.alphas[t]) * torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
+        w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+        if not first:
+            grad = 1e-2 * w * (latents - first_latents + w1 * (noise - noise_pred))
+        else:
+            grad = w * (latents - first_latents + w1 * (noise - noise_pred))
+
+        grad = torch.nan_to_num(grad)
+        loss = SpecifyGradient.apply(latents, grad)
+        return loss
 
     def produce_latents(self, text_embeddings, height=512, width=512, num_inference_steps=50, guidance_scale=7.5, latents=None):
 

@@ -453,6 +453,11 @@ class NeRFRenderer(nn.Module):
         if self.bg_radius > 0:
             # use the bg model to calculate bg_color
             bg_color = self.background(rays_d.reshape(-1, 3)) # [N, 3]
+
+            # Mine: фон теперь можно сделать любым: поправить еще файл network_grid.py
+            # temp_shape = self.background(rays_d)
+            # from matplotlib import colors
+            # bg_color = torch.from_numpy(np.tile(colors.to_rgb('yellow'), (temp_shape[0], 1))).to(torch.float16).to(device)
         elif bg_color is None:
             bg_color = 1
             
