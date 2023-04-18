@@ -138,8 +138,6 @@ class NeRFNetwork(NeRFRenderer):
         rgbs = torch.sigmoid(h)
 
         return rgbs
-        # Mine: задания константного цвета фона
-        # return rgbs.shape
 
     # optimizer utils
     def get_params(self, lr):

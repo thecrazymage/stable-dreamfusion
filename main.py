@@ -48,8 +48,6 @@ if __name__ == '__main__':
     parser.add_argument('--density_thresh', type=float, default=0.1, help="threshold for density grid to be occupied")
     parser.add_argument('--blob_density', type=float, default=10, help="max (center) density for the density blob")
     parser.add_argument('--blob_radius', type=float, default=0.5, help="control the radius for the density blob")
-    # Mine: добавил в качестве аргумента то, сколько шагов мы делаем, после одног вычисление u-net
-    parser.add_argument('--steps1', type=int, default=1, help="Steps after one u-net calculation")
     # network backbone
     parser.add_argument('--fp16', action='store_true', help="use amp mixed precision training")
     parser.add_argument('--backbone', type=str, default='grid', choices=['grid', 'vanilla'], help="nerf backbone")
@@ -59,7 +57,7 @@ if __name__ == '__main__':
     # rendering resolution in training, decrease this if CUDA OOM.
     parser.add_argument('--w', type=int, default=64, help="render width for NeRF in training")
     parser.add_argument('--h', type=int, default=64, help="render height for NeRF in training")
-
+    
     ### dataset options
     parser.add_argument('--bound', type=float, default=1, help="assume the scene is bounded in box(-bound, bound)")
     parser.add_argument('--dt_gamma', type=float, default=0, help="dt_gamma (>=0) for adaptive ray marching. set to 0 to disable, >0 to accelerate rendering (but usually with worse quality)")
@@ -75,7 +73,7 @@ if __name__ == '__main__':
     parser.add_argument('--lambda_entropy', type=float, default=1e-4, help="loss scale for alpha entropy")
     parser.add_argument('--lambda_opacity', type=float, default=0, help="loss scale for alpha value")
     parser.add_argument('--lambda_orient', type=float, default=1e-2, help="loss scale for orientation")
-    parser.add_argument('--lambda_tv', type=float, default=1e-7, help="loss scale for total variation")
+    parser.add_argument('--lambda_tv', type=float, default=0, help="loss scale for total variation")
 
     ### GUI options
     parser.add_argument('--gui', action='store_true', help="start a GUI")
@@ -161,7 +159,7 @@ if __name__ == '__main__':
             # scheduler = lambda optimizer: optim.lr_scheduler.LambdaLR(optimizer, lambda iter: 0.1 ** min(iter / opt.iters, 1))
 
         if opt.guidance == 'stable-diffusion':
-            from nerf.sd import StableDiffusion
+            from sd import StableDiffusion
             guidance = StableDiffusion(device, opt.sd_version, opt.hf_key)
         elif opt.guidance == 'clip':
             from nerf.clip import CLIP
