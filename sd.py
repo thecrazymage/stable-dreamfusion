@@ -168,10 +168,10 @@ class StableDiffusion(nn.Module):
         a = self.first_latents.clone().detach()
         b = latents.clone().detach()
 
-        if not first:
-            grad = 1e-1 * w * w2 * (a - b + w1 * (self.noise_pred - self.noise))
-        else:
-            grad = w * w2 * (a - b + w1 * (self.noise_pred - self.noise))
+        # if not first:
+        #     grad = 1e-1 * w * w2 * (a - b + w1 * (self.noise_pred - self.noise))
+        # else:
+        grad = w * w2 * (b - a + w1 * (self.noise_pred - self.noise))
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
