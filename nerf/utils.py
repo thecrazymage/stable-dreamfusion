@@ -831,7 +831,10 @@ class Trainer(object):
                 shading = 'lambertian'
                 ambient_ratio = 0.1
 
+        # Mine: не менять фон - это критично.
+        torch.manual_seed(int(rand*100))
         bg_color = torch.rand((B * N, 3), device=rays_o.device) # pixel-wise random
+        print(bg_color)
         outputs = self.model.render(rays_o, rays_d, staged=False, perturb=True, bg_color=bg_color, ambient_ratio=ambient_ratio, shading=shading, force_all_rays=True, **vars(self.opt))
         pred_rgb = outputs['image'].reshape(B, H, W, 3).permute(0, 3, 1, 2).contiguous() # [1, 3, H, W]
         pred_depth = outputs['depth'].reshape(B, 1, H, W)
