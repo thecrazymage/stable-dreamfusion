@@ -163,18 +163,19 @@ class StableDiffusion(nn.Module):
         w = (1 - self.alphas[t])
         w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
         w2 = torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
-        # grad = w * w2 * (self.first_latents - latents + w1 * (self.noise_pred - self.noise))
 
         a = self.first_latents.clone().detach()
         b = latents.clone().detach()
 
-        # if not first:
-        #     grad = 1e-1 * w * w2 * (a - b + w1 * (self.noise_pred - self.noise))
-        # else:
+        # А точно ли нам нужно брать разницу текущего латентного представления и первого, мб брать разницу с 
+        # предыдущим?
         grad = w * w2 * (b - a + w1 * (self.noise_pred - self.noise))
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
+
+        # Вычитаем теперь пердыдущий
+        self.first_latents = latents
 
             # # Сохраним текущие важные показатели
             # self.temp_noise = noise
