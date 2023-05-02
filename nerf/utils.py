@@ -806,7 +806,7 @@ class Trainer(object):
                 self.lr_scheduler.step()
 
         end_one_epoch = time.time()
-        self.log(f"==> Finished Epoch {self.epoch}. It takes {end_one_epoch - start_one_epoch}.")
+        self.log(f"==> Finished Epoch {self.epoch}. It takes {(end_one_epoch - start_one_epoch) / 60:.4f} minutes.")
 
     # Mine: новая функция обучения
     def train_step2(self, data, rand=None, first=False):
