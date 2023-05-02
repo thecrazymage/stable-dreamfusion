@@ -724,6 +724,7 @@ class Trainer(object):
 
     def train_one_epoch(self, loader):
         self.log(f"==> Start Training {self.workspace} Epoch {self.epoch}, lr={self.optimizer.param_groups[0]['lr']:.6f} ...")
+        start_one_epoch = time.time()
 
         total_loss = 0
         if self.local_rank == 0 and self.report_metric_at_train:
@@ -804,7 +805,8 @@ class Trainer(object):
             else:
                 self.lr_scheduler.step()
 
-        self.log(f"==> Finished Epoch {self.epoch}.")
+        end_one_epoch = time.time()
+        self.log(f"==> Finished Epoch {self.epoch}. It takes {end_one_epoch - start_one_epoch}.")
 
     # Mine: новая функция обучения
     def train_step2(self, data, rand=None, first=False):
