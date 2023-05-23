@@ -192,63 +192,42 @@ class StableDiffusion(nn.Module):
         return loss
 
     def new_train_step(self, text_embeddings, pred_rgb, guidance_scale=100, first=False):
-
         pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
-
-        import time
-        start_encoder = time.time()
         latents = self.encode_imgs(pred_rgb_512)
-        end_encoder = time.time()
-        # print(f"\nEncoder works {end_encoder - start_encoder}")
-        self.encoder_times.append(end_encoder - start_encoder)
 
-        if not first:
-            t = self.temp_timestep
-            noise = self.temp_noise
-            noise_pred = self.temp_noise_pred
-            first_latents = self.first_latents
-            with torch.no_grad():
-                first_latents_noisy = self.scheduler.add_noise(first_latents, noise, t)
-                latents_noisy = self.scheduler.add_noise(latents, noise, t)
-
-            # w = (1 - self.alphas[t])
-            w = 1 / self.alpha[t]
-            w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
-            grad = 2 * (latents_noisy - first_latents_noisy - w1 * (noise - noise_pred))
-        else:
+        if first:
             t = torch.randint(self.min_step, self.max_step + 1, [1], dtype=torch.long, device=self.device)
-
             with torch.no_grad():
                 noise = torch.randn_like(latents)
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
-
                 latent_model_input = torch.cat([latents_noisy] * 2)
-
-                start_unet = time.time()
-                noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
-                end_unet = time.time()
-                # print(f"\nU-net works {end_unet - start_unet}")
-                self.unet_times.append(end_unet - start_unet)
+                # noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+                noise_pred = noise * 0.98
 
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-            # Сохраним текущие важные показатели
-            self.temp_noise = noise
-            self.temp_timestep = t
             self.first_latents = latents
-            self.temp_noise_pred = noise_pred
+            self.t = t
+            self.noise = noise
+            self.noise_pred = noise_pred
 
-            # w = (1 - self.alphas[t])
-            # Тот коэффициент, перед шумами - можно переписать без деления
-            w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t])
-            # grad = w * (noise_pred - noise)
-            # grad = 2 * w * (noise_pred - noise)
-            w = 1 / self.alpha[t]
-            grad = 2 * w * w1 * (noise_pred - noise)
+        t = self.t
+
+        w = (1 - self.alphas[t])
+        w1 = (1 - self.alpha[t]) / torch.sqrt(1 - self.alphas[t]) / torch.sqrt(self.alphas[t])
+        w2 = torch.sqrt(1 - self.alphas[t]) * torch.sqrt(self.alphas[t]) / (1 - self.alpha[t])
+
+        a = self.first_latents.clone().detach()
+        b = latents.clone().detach()
+
+        grad = w * w2 * (b - a + w1 * (self.noise_pred - self.noise))
 
         grad = torch.nan_to_num(grad)
         loss = SpecifyGradient.apply(latents, grad)
+
+        # Вычитаем теперь пердыдущий
+        self.first_latents = latents
         return loss
 
     def produce_latents(self, text_embeddings, height=512, width=512, num_inference_steps=50, guidance_scale=7.5, latents=None):
