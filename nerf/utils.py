@@ -824,21 +824,24 @@ class Trainer(object):
         B, N = rays_o.shape[:2]
         H, W = data['H'], data['W']
 
-        if self.global_step < self.opt.albedo_iters:
-            shading = 'albedo'
-            ambient_ratio = 1.0
-        else:
-            if not rand:
-                rand = random.random()
-            if rand > 0.8:
-                shading = 'albedo'
-                ambient_ratio = 1.0
-            elif rand > 0.4:
-                shading = 'textureless'
-                ambient_ratio = 0.1
-            else:
-                shading = 'lambertian'
-                ambient_ratio = 0.1
+        shading = 'albedo'
+        ambient_ratio = 1.0
+
+        # if self.global_step < self.opt.albedo_iters:
+        #     shading = 'albedo'
+        #     ambient_ratio = 1.0
+        # else:
+        #     if not rand:
+        #         rand = random.random()
+        #     if rand > 0.8:
+        #         shading = 'albedo'
+        #         ambient_ratio = 1.0
+        #     elif rand > 0.4:
+        #         shading = 'textureless'
+        #         ambient_ratio = 0.1
+        #     else:
+        #         shading = 'lambertian'
+        #         ambient_ratio = 0.1
 
         bg_color = torch.rand((B * N, 3), device=rays_o.device) # pixel-wise random
 
@@ -860,6 +863,7 @@ class Trainer(object):
 
         # Вызов Stable Diffusion
         loss = self.guidance.new_train_step(text_z, pred_rgb, first=first)
+        # loss = pred_rgb.sum()
 
         # regularizations
         if self.opt.lambda_opacity > 0:
@@ -917,9 +921,7 @@ class Trainer(object):
 
                 # Start time for optimizer
                 start_zero_grad = time.time()
-
                 self.optimizer.zero_grad()
-
                 end_zero_grad = time.time()
                 if bool(not (i-1)):
                     time_arr1[0].append(start_zero_grad - end_zero_grad)
@@ -927,8 +929,6 @@ class Trainer(object):
                     time_arr1[1].append(start_zero_grad - end_zero_grad)
                 # End time for optimizer
 
-                # Start time for with
-                start_with = time.time()
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
                     start_train_step2 = time.time()
@@ -939,41 +939,43 @@ class Trainer(object):
                     else:
                         time_arr2[1].append(end_train_step2 - start_train_step2)
 
-                end_with = time.time()
-                if bool(not (i-1)):
-                    time_arr4[0].append(end_with - start_with)
-                else:
-                    time_arr4[1].append(end_with - start_with)
-                # End time for with
-
                 # Start time for backward
                 start_backward = time.time()
-
                 self.scaler.scale(loss).backward()
-                start_posttrain = time.time()
-                self.post_train_step()
-                end_posttrain = time.time()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-
                 end_backward = time.time()
                 if bool(not (i-1)):
                     time_arr5[0].append(end_backward - start_backward)
                 else:
                     time_arr5[1].append(end_backward - start_backward)
 
+                start_posttrain = time.time()
+                self.post_train_step()
+                end_posttrain = time.time()
                 if bool(not (i-1)):
                     time_arr8[0].append(end_posttrain - start_posttrain)
                 else:
                     time_arr8[1].append(end_posttrain - start_posttrain)
-                # End time for backward
+
+                start_scaler_opt = time.time()
+                self.scaler.step(self.optimizer)
+                end_scaler_opt = time.time()
+                if bool(not (i-1)):
+                    time_arr9[0].append(end_scaler_opt - start_scaler_opt)
+                else:
+                    time_arr9[1].append(end_scaler_opt - start_scaler_opt)
+
+                start_scaler_update = time.time()
+                self.scaler.update()
+                end_scaler_update = time.time()
+                if bool(not (i-1)):
+                    time_arr10[0].append(end_scaler_update - start_scaler_update)
+                else:
+                    time_arr10[1].append(end_scaler_update - start_scaler_update)
 
                 # Start time for scheduler
                 start_scheduler = time.time()
-
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
-
                 end_scheduler = time.time()
                 if bool(not (i-1)):
                     time_arr6[0].append(end_scheduler - start_scheduler)
@@ -1005,16 +1007,19 @@ class Trainer(object):
         print(f"Optimizer zero grad time (1 step) = {np.mean(time_arr1[1])}")
         print(f"train_step2() time (0 step) = {np.mean(time_arr2[0])}")
         print(f"train_step2() time (1 step) = {np.mean(time_arr2[1])}")
-        print(f"With cuda.amp.autocast time (0 step) = {np.mean(time_arr4[0])}")
-        print(f"With cuda.amp.autocast time (1 step) = {np.mean(time_arr4[1])}")
         print(f"Backward time (0 step) = {np.mean(time_arr5[0])}")
         print(f"Backward time (1 step) = {np.mean(time_arr5[1])}")
-        print(f"Backward post_train step time (0 step) = {np.mean(time_arr8[0])}")
-        print(f"Backward post_train step time (1 step) = {np.mean(time_arr8[1])}")
+        print(f"Post_train step time (0 step) = {np.mean(time_arr8[0])}")
+        print(f"Post_train step time (1 step) = {np.mean(time_arr8[1])}")
+        print(f"Scaler optimizer (0 step) = {np.mean(time_arr9[0])}")
+        print(f"Scaler optimizer (1 step) = {np.mean(time_arr9[1])}")
+        print(f"Scaler.update time (0 step) = {np.mean(time_arr10[0])}")
+        print(f"Scaler.update time (1 step) = {np.mean(time_arr10[1])}")
         print(f"Scheduler time (0 step) = {np.mean(time_arr6[0])}")
         print(f"Scheduler time (1 step) = {np.mean(time_arr6[1])}")
         print(f"For time (0 step) = {np.mean(time_arr7[0])}")
         print(f"For time (1 step) = {np.mean(time_arr7[1])}")
+
 
         if self.ema is not None:
             self.ema.update()
