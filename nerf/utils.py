@@ -1017,7 +1017,7 @@ class Trainer(object):
                     pred_depth = preds_depth[0].detach().cpu().numpy()
                     pred_depth = (pred_depth - pred_depth.min()) / (pred_depth.max() - pred_depth.min() + 1e-6)
                     pred_depth = (pred_depth * 255).astype(np.uint8)
-                    
+
                     cv2.imwrite(save_path, cv2.cvtColor(pred, cv2.COLOR_RGB2BGR))
                     cv2.imwrite(save_path_depth, pred_depth)
 
