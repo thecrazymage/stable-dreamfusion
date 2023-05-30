@@ -905,6 +905,7 @@ class Trainer(object):
 
         time_arr1, time_arr2, time_arr3, time_arr4, time_arr5 = [[], []], [[], []], [[], []], [[], []], [[], []]
         time_arr6, time_arr7, time_arr8, time_arr9, time_arr10 = [[], []], [[], []], [[], []], [[], []], [[], []]
+        torch.cuda.synchronize()
         for data in loader:
             # update grid every 16 steps
             if self.model.cuda_ray and self.global_step % self.opt.update_extra_interval == 0:
@@ -917,11 +918,14 @@ class Trainer(object):
             rand = random.random()
              # For тоже надо разбить на два, потому что на разных шагах, разное время.
             for i in range(1, self.add_steps+1):
+                torch.cuda.synchronize()
                 start_for = time.time()
 
                 # Start time for optimizer
+                torch.cuda.synchronize()
                 start_zero_grad = time.time()
                 self.optimizer.zero_grad()
+                torch.cuda.synchronize()
                 end_zero_grad = time.time()
                 if bool(not (i-1)):
                     time_arr1[0].append(start_zero_grad - end_zero_grad)
@@ -931,8 +935,10 @@ class Trainer(object):
 
 
                 with torch.cuda.amp.autocast(enabled=self.fp16):
+                    torch.cuda.synchronize()
                     start_train_step2 = time.time()
                     pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
+                    torch.cuda.synchronize()
                     end_train_step2 = time.time()
                     if bool(not (i-1)):
                         time_arr2[0].append(end_train_step2 - start_train_step2)
@@ -940,32 +946,40 @@ class Trainer(object):
                         time_arr2[1].append(end_train_step2 - start_train_step2)
 
                 # Start time for backward
+                torch.cuda.synchronize()
                 start_backward = time.time()
                 self.scaler.scale(loss).backward()
+                torch.cuda.synchronize()
                 end_backward = time.time()
                 if bool(not (i-1)):
                     time_arr5[0].append(end_backward - start_backward)
                 else:
                     time_arr5[1].append(end_backward - start_backward)
 
+                torch.cuda.synchronize()
                 start_posttrain = time.time()
                 self.post_train_step()
+                torch.cuda.synchronize()
                 end_posttrain = time.time()
                 if bool(not (i-1)):
                     time_arr8[0].append(end_posttrain - start_posttrain)
                 else:
                     time_arr8[1].append(end_posttrain - start_posttrain)
 
+                torch.cuda.synchronize()
                 start_scaler_opt = time.time()
                 self.scaler.step(self.optimizer)
+                torch.cuda.synchronize()
                 end_scaler_opt = time.time()
                 if bool(not (i-1)):
                     time_arr9[0].append(end_scaler_opt - start_scaler_opt)
                 else:
                     time_arr9[1].append(end_scaler_opt - start_scaler_opt)
 
+                torch.cuda.synchronize()
                 start_scaler_update = time.time()
                 self.scaler.update()
+                torch.cuda.synchronize()
                 end_scaler_update = time.time()
                 if bool(not (i-1)):
                     time_arr10[0].append(end_scaler_update - start_scaler_update)
@@ -973,9 +987,11 @@ class Trainer(object):
                     time_arr10[1].append(end_scaler_update - start_scaler_update)
 
                 # Start time for scheduler
+                torch.cuda.synchronize()
                 start_scheduler = time.time()
                 if self.scheduler_update_every_step:
                     self.lr_scheduler.step()
+                torch.cuda.synchronize()
                 end_scheduler = time.time()
                 if bool(not (i-1)):
                     time_arr6[0].append(end_scheduler - start_scheduler)
@@ -983,6 +999,7 @@ class Trainer(object):
                     time_arr6[1].append(end_scheduler - start_scheduler)
                 # End time for scheduler
 
+                torch.cuda.synchronize()
                 end_for = time.time()
                 if bool(not (i-1)):
                     time_arr7[0].append(end_for - start_for)

@@ -201,8 +201,8 @@ class StableDiffusion(nn.Module):
                 noise = torch.randn_like(latents)
                 latents_noisy = self.scheduler.add_noise(latents, noise, t)
                 latent_model_input = torch.cat([latents_noisy] * 2)
-                # noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
-                noise_pred = noise * 0.98
+                noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+                # noise_pred = noise * 0.98
 
             noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
             noise_pred = noise_pred_text + guidance_scale * (noise_pred_text - noise_pred_uncond)
