@@ -38,6 +38,7 @@ class _freq_encoder(Function):
     @custom_bwd
     def backward(ctx, grad):
         # grad: [B, C * C]
+        print("I was here - 2!")
 
         grad = grad.contiguous()
         inputs, outputs = ctx.saved_tensors

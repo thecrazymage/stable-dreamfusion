@@ -297,6 +297,7 @@ class _composite_rays_train(Function):
     @staticmethod
     @custom_bwd
     def backward(ctx, grad_weights, grad_weights_sum, grad_depth, grad_image):
+        print("I was here - 4!")
         
         grad_weights = grad_weights.contiguous()
         grad_weights_sum = grad_weights_sum.contiguous()

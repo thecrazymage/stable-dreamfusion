@@ -42,6 +42,8 @@ class _sh_encoder(Function):
     def backward(ctx, grad):
         # grad: [B, C * C]
 
+        print("I was here - 5!")
+
         inputs, dy_dx = ctx.saved_tensors
 
         if dy_dx is not None:

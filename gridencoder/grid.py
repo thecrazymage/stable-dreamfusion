@@ -66,7 +66,7 @@ class _grid_encode(Function):
     #@once_differentiable
     @custom_bwd
     def backward(ctx, grad):
-
+        print("I was here - 3!")
         inputs, embeddings, offsets, dy_dx = ctx.saved_tensors
         B, D, C, L, S, H, gridtype, interpolation = ctx.dims
         align_corners = ctx.align_corners

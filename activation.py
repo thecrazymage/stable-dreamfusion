@@ -12,6 +12,7 @@ class _trunc_exp(Function):
     @staticmethod
     @custom_bwd
     def backward(ctx, g):
+        print("I was here - 1!")
         x = ctx.saved_tensors[0]
         return g * torch.exp(x.clamp(max=15))
 
