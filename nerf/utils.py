@@ -527,32 +527,50 @@ class Trainer(object):
         start_t = time.time()
 
         from .provider import NeRFDataset
-        for epoch in range(self.epoch + 1, max_epochs + 1):
-            self.epoch = epoch
+        import torch.autograd.profiler as profiler
+        with torch.profiler.profile(
+            activities=[
+                torch.profiler.ProfilerActivity.CPU,
+                torch.profiler.ProfilerActivity.CUDA,
+            ],
+            # In this example with wait=1, warmup=1, active=2, repeat=1,
+            # profiler will skip the first step/iteration,
+            # start warming up on the second, record
+            # the third and the forth iterations,
+            # after which the trace will become available
+            # and on_trace_ready (when set) is called;
+            # the cycle repeats starting with the next step
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=1),
+            ) as p:
+            for epoch in range(self.epoch + 1, max_epochs + 1):
+                self.epoch = epoch
 
-            start_train_one_epoch2 = time.time()
-            self.train_one_epoch2(train_loader)
-            end_train_one_epoch2 = time.time()
+                start_train_one_epoch2 = time.time()
+                self.train_one_epoch2(train_loader)
+                end_train_one_epoch2 = time.time()
 
-            print(f"\nAverage time of render working = {np.mean(self.render_times)}")
-            print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
-            print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
-            print(f"Train one epoch 2 time = {end_train_one_epoch2 - start_train_one_epoch2}\n")
+                print(f"\nAverage time of render working = {np.mean(self.render_times)}")
+                print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
+                print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
+                print(f"Train one epoch 2 time = {end_train_one_epoch2 - start_train_one_epoch2}\n")
 
-            if self.workspace is not None and self.local_rank == 0:
-                self.save_checkpoint(full=True, best=False)
+                if self.workspace is not None and self.local_rank == 0:
+                    self.save_checkpoint(full=True, best=False)
 
-            if self.epoch % self.eval_interval == 0:
-                self.evaluate_one_epoch(valid_loader)
-                self.save_checkpoint(full=False, best=True)
+                if self.epoch % self.eval_interval == 0:
+                    self.evaluate_one_epoch(valid_loader)
+                    self.save_checkpoint(full=False, best=True)
 
-            # Mine: добавил отрисовку видео каждые 5 эпох
-            # if epoch % 5 == 0:
-            # test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
-            # self.test(test_loader)
+                # Mine: добавил отрисовку видео каждые 5 эпох
+                # if epoch % 5 == 0:
+                # test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+                # self.test(test_loader)
+                p.step()
 
-        end_t = time.time()
+            end_t = time.time()
 
+        p.export_chrome_trace("result.json")
+        print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=-1))
         self.log(f"[INFO] training takes {(end_t - start_t)/ 60:.4f} minutes.")
 
         if self.use_tensorboardX and self.local_rank == 0:
@@ -903,127 +921,123 @@ class Trainer(object):
 
         self.local_step = 0
 
+        time_arr1, time_arr2, time_arr3, time_arr4, time_arr5 = [[], []], [[], []], [[], []], [[], []], [[], []]
+        time_arr6, time_arr7, time_arr8, time_arr9, time_arr10 = [[], []], [[], []], [[], []], [[], []], [[], []]
+        torch.cuda.synchronize()
+        for data in loader:
+            # update grid every 16 steps
+            if self.model.cuda_ray and self.global_step % self.opt.update_extra_interval == 0:
+                with torch.cuda.amp.autocast(enabled=self.fp16):
+                    self.model.update_extra_state()
 
-        import torch.autograd.profiler as profiler
-        with profiler.profile(with_stack=True, profile_memory=True) as prof:
+            self.local_step += 1
+            self.global_step += 1
 
-            time_arr1, time_arr2, time_arr3, time_arr4, time_arr5 = [[], []], [[], []], [[], []], [[], []], [[], []]
-            time_arr6, time_arr7, time_arr8, time_arr9, time_arr10 = [[], []], [[], []], [[], []], [[], []], [[], []]
-            torch.cuda.synchronize()
-            for data in loader:
-                # update grid every 16 steps
-                if self.model.cuda_ray and self.global_step % self.opt.update_extra_interval == 0:
-                    with torch.cuda.amp.autocast(enabled=self.fp16):
-                        self.model.update_extra_state()
+            rand = random.random()
+            # For тоже надо разбить на два, потому что на разных шагах, разное время.
+            for i in range(1, self.add_steps+1):
+                torch.cuda.synchronize()
+                start_for = time.time()
 
-                self.local_step += 1
-                self.global_step += 1
+                # Start time for optimizer
+                torch.cuda.synchronize()
+                start_zero_grad = time.time()
+                self.optimizer.zero_grad()
+                torch.cuda.synchronize()
+                end_zero_grad = time.time()
+                if bool(not (i-1)):
+                    time_arr1[0].append(start_zero_grad - end_zero_grad)
+                else:
+                    time_arr1[1].append(start_zero_grad - end_zero_grad)
+                # End time for optimizer
 
-                rand = random.random()
-                # For тоже надо разбить на два, потому что на разных шагах, разное время.
-                for i in range(1, self.add_steps+1):
+
+                with torch.cuda.amp.autocast(enabled=self.fp16):
                     torch.cuda.synchronize()
-                    start_for = time.time()
-
-                    # Start time for optimizer
+                    start_train_step2 = time.time()
+                    pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
                     torch.cuda.synchronize()
-                    start_zero_grad = time.time()
-                    self.optimizer.zero_grad()
-                    torch.cuda.synchronize()
-                    end_zero_grad = time.time()
+                    end_train_step2 = time.time()
                     if bool(not (i-1)):
-                        time_arr1[0].append(start_zero_grad - end_zero_grad)
+                        time_arr2[0].append(end_train_step2 - start_train_step2)
                     else:
-                        time_arr1[1].append(start_zero_grad - end_zero_grad)
-                    # End time for optimizer
+                        time_arr2[1].append(end_train_step2 - start_train_step2)
 
+                # Start time for backward
+                torch.cuda.synchronize()
+                print("\nStart Backward")
+                start_backward = time.time()
+                self.scaler.scale(loss).backward()
+                torch.cuda.synchronize()
+                end_backward = time.time()
+                if bool(not (i-1)):
+                    time_arr5[0].append(end_backward - start_backward)
+                else:
+                    time_arr5[1].append(end_backward - start_backward)
 
-                    with torch.cuda.amp.autocast(enabled=self.fp16):
-                        torch.cuda.synchronize()
-                        start_train_step2 = time.time()
-                        pred_rgbs, pred_depths, loss = self.train_step2(data, rand=rand, first=bool(not (i-1)))
-                        torch.cuda.synchronize()
-                        end_train_step2 = time.time()
-                        if bool(not (i-1)):
-                            time_arr2[0].append(end_train_step2 - start_train_step2)
-                        else:
-                            time_arr2[1].append(end_train_step2 - start_train_step2)
+                torch.cuda.synchronize()
+                start_posttrain = time.time()
+                self.post_train_step()
+                torch.cuda.synchronize()
+                end_posttrain = time.time()
+                if bool(not (i-1)):
+                    time_arr8[0].append(end_posttrain - start_posttrain)
+                else:
+                    time_arr8[1].append(end_posttrain - start_posttrain)
 
-                    # Start time for backward
-                    torch.cuda.synchronize()
-                    print("\nStart Backward")
-                    start_backward = time.time()
-                    self.scaler.scale(loss).backward()
-                    torch.cuda.synchronize()
-                    end_backward = time.time()
-                    if bool(not (i-1)):
-                        time_arr5[0].append(end_backward - start_backward)
-                    else:
-                        time_arr5[1].append(end_backward - start_backward)
+                torch.cuda.synchronize()
+                start_scaler_opt = time.time()
+                self.scaler.step(self.optimizer)
+                torch.cuda.synchronize()
+                end_scaler_opt = time.time()
+                if bool(not (i-1)):
+                    time_arr9[0].append(end_scaler_opt - start_scaler_opt)
+                else:
+                    time_arr9[1].append(end_scaler_opt - start_scaler_opt)
 
-                    torch.cuda.synchronize()
-                    start_posttrain = time.time()
-                    self.post_train_step()
-                    torch.cuda.synchronize()
-                    end_posttrain = time.time()
-                    if bool(not (i-1)):
-                        time_arr8[0].append(end_posttrain - start_posttrain)
-                    else:
-                        time_arr8[1].append(end_posttrain - start_posttrain)
+                torch.cuda.synchronize()
+                start_scaler_update = time.time()
+                self.scaler.update()
+                torch.cuda.synchronize()
+                end_scaler_update = time.time()
+                if bool(not (i-1)):
+                    time_arr10[0].append(end_scaler_update - start_scaler_update)
+                else:
+                    time_arr10[1].append(end_scaler_update - start_scaler_update)
 
-                    torch.cuda.synchronize()
-                    start_scaler_opt = time.time()
-                    self.scaler.step(self.optimizer)
-                    torch.cuda.synchronize()
-                    end_scaler_opt = time.time()
-                    if bool(not (i-1)):
-                        time_arr9[0].append(end_scaler_opt - start_scaler_opt)
-                    else:
-                        time_arr9[1].append(end_scaler_opt - start_scaler_opt)
+                # Start time for scheduler
+                torch.cuda.synchronize()
+                start_scheduler = time.time()
+                if self.scheduler_update_every_step:
+                    self.lr_scheduler.step()
+                torch.cuda.synchronize()
+                end_scheduler = time.time()
+                if bool(not (i-1)):
+                    time_arr6[0].append(end_scheduler - start_scheduler)
+                else:
+                    time_arr6[1].append(end_scheduler - start_scheduler)
+                # End time for scheduler
 
-                    torch.cuda.synchronize()
-                    start_scaler_update = time.time()
-                    self.scaler.update()
-                    torch.cuda.synchronize()
-                    end_scaler_update = time.time()
-                    if bool(not (i-1)):
-                        time_arr10[0].append(end_scaler_update - start_scaler_update)
-                    else:
-                        time_arr10[1].append(end_scaler_update - start_scaler_update)
+                torch.cuda.synchronize()
+                end_for = time.time()
+                if bool(not (i-1)):
+                    time_arr7[0].append(end_for - start_for)
+                else:
+                    time_arr7[1].append(end_for - start_for)
 
-                    # Start time for scheduler
-                    torch.cuda.synchronize()
-                    start_scheduler = time.time()
-                    if self.scheduler_update_every_step:
-                        self.lr_scheduler.step()
-                    torch.cuda.synchronize()
-                    end_scheduler = time.time()
-                    if bool(not (i-1)):
-                        time_arr6[0].append(end_scheduler - start_scheduler)
-                    else:
-                        time_arr6[1].append(end_scheduler - start_scheduler)
-                    # End time for scheduler
+            loss_val = loss.item()
+            total_loss += loss_val
 
-                    torch.cuda.synchronize()
-                    end_for = time.time()
-                    if bool(not (i-1)):
-                        time_arr7[0].append(end_for - start_for)
-                    else:
-                        time_arr7[1].append(end_for - start_for)
+            if self.local_rank == 0:
+                if self.use_tensorboardX:
+                    self.writer.add_scalar("train/loss", loss_val, self.global_step)
+                    self.writer.add_scalar("train/lr", self.optimizer.param_groups[0]['lr'], self.global_step)
 
-                loss_val = loss.item()
-                total_loss += loss_val
-
-                if self.local_rank == 0:
-                    if self.use_tensorboardX:
-                        self.writer.add_scalar("train/loss", loss_val, self.global_step)
-                        self.writer.add_scalar("train/lr", self.optimizer.param_groups[0]['lr'], self.global_step)
-
-                    if self.scheduler_update_every_step:
-                        pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f}), lr={self.optimizer.param_groups[0]['lr']:.6f}")
-                    else:
-                        pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
-                    pbar.update(loader.batch_size)
+                if self.scheduler_update_every_step:
+                    pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f}), lr={self.optimizer.param_groups[0]['lr']:.6f}")
+                else:
+                    pbar.set_description(f"loss={loss_val:.4f} ({total_loss/self.local_step:.4f})")
+                pbar.update(loader.batch_size)
 
         print(f"\n\nOptimizer zero grad time (0 step) = {np.mean(time_arr1[0])}")
         print(f"Optimizer zero grad time (1 step) = {np.mean(time_arr1[1])}")
@@ -1041,9 +1055,6 @@ class Trainer(object):
         print(f"Scheduler time (1 step) = {np.mean(time_arr6[1])}")
         print(f"For time (0 step) = {np.mean(time_arr7[0])}")
         print(f"For time (1 step) = {np.mean(time_arr7[1])}")
-
-        print(prof)
-
 
         if self.ema is not None:
             self.ema.update()
