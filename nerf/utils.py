@@ -569,7 +569,7 @@ class Trainer(object):
 
             end_t = time.time()
 
-        p.export_chrome_trace("result.json")
+        # p.export_chrome_trace("result.json")
         print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=-1))
         self.log(f"[INFO] training takes {(end_t - start_t)/ 60:.4f} minutes.")
 
