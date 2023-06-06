@@ -965,7 +965,7 @@ class Trainer(object):
 
                 # Start time for backward
                 torch.cuda.synchronize()
-                print("\nStart Backward")
+                # print("\nStart Backward")
                 start_backward = time.time()
                 self.scaler.scale(loss).backward()
                 torch.cuda.synchronize()
