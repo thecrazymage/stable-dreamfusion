@@ -299,18 +299,21 @@ class _composite_rays_train(Function):
     def backward(ctx, grad_weights, grad_weights_sum, grad_depth, grad_image):
         print("I was here - 4!")
         
-        grad_weights = grad_weights.contiguous()
-        grad_weights_sum = grad_weights_sum.contiguous()
-        grad_depth = grad_depth.contiguous()
-        grad_image = grad_image.contiguous()
+        import torch.autograd.profiler as profiler
+        with profiler.record_function("INIT - 4.1"):
+            grad_weights = grad_weights.contiguous()
+            grad_weights_sum = grad_weights_sum.contiguous()
+            grad_depth = grad_depth.contiguous()
+            grad_image = grad_image.contiguous()
 
-        sigmas, rgbs, ts, rays, weights_sum, depth, image = ctx.saved_tensors
-        M, N, T_thresh = ctx.dims
-   
-        grad_sigmas = torch.zeros_like(sigmas)
-        grad_rgbs = torch.zeros_like(rgbs)
+            sigmas, rgbs, ts, rays, weights_sum, depth, image = ctx.saved_tensors
+            M, N, T_thresh = ctx.dims
+    
+            grad_sigmas = torch.zeros_like(sigmas)
+            grad_rgbs = torch.zeros_like(rgbs)
 
-        get_backend().composite_rays_train_backward(grad_weights, grad_weights_sum, grad_depth, grad_image, sigmas, rgbs, ts, rays, weights_sum, depth, image, M, N, T_thresh, grad_sigmas, grad_rgbs)
+        with profiler.record_function("INIT - 4.2"):
+            get_backend().composite_rays_train_backward(grad_weights, grad_weights_sum, grad_depth, grad_image, sigmas, rgbs, ts, rays, weights_sum, depth, image, M, N, T_thresh, grad_sigmas, grad_rgbs)
 
         return grad_sigmas, grad_rgbs, None, None, None
 
