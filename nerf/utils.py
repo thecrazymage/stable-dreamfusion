@@ -527,50 +527,32 @@ class Trainer(object):
         start_t = time.time()
 
         from .provider import NeRFDataset
-        import torch.autograd.profiler as profiler
-        with torch.profiler.profile(
-            activities=[
-                torch.profiler.ProfilerActivity.CPU,
-                torch.profiler.ProfilerActivity.CUDA,
-            ],
-            # In this example with wait=1, warmup=1, active=2, repeat=1,
-            # profiler will skip the first step/iteration,
-            # start warming up on the second, record
-            # the third and the forth iterations,
-            # after which the trace will become available
-            # and on_trace_ready (when set) is called;
-            # the cycle repeats starting with the next step
-            schedule=torch.profiler.schedule(wait=1, warmup=1, active=1),
-            ) as p:
-            for epoch in range(self.epoch + 1, max_epochs + 1):
-                self.epoch = epoch
+        for epoch in range(self.epoch + 1, max_epochs + 1):
+            self.epoch = epoch
 
-                start_train_one_epoch2 = time.time()
-                self.train_one_epoch2(train_loader)
-                end_train_one_epoch2 = time.time()
+            start_train_one_epoch2 = time.time()
+            self.train_one_epoch2(train_loader)
+            end_train_one_epoch2 = time.time()
 
-                print(f"\nAverage time of render working = {np.mean(self.render_times)}")
-                print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
-                print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
-                print(f"Train one epoch 2 time = {end_train_one_epoch2 - start_train_one_epoch2}\n")
+            print(f"\nAverage time of render working = {np.mean(self.render_times)}")
+            print(f"Average time of encoder working = {np.mean(self.guidance.encoder_times)}")
+            print(f"Average time of unet working = {np.mean(self.guidance.unet_times)}")
+            print(f"Train one epoch 2 time = {end_train_one_epoch2 - start_train_one_epoch2}\n")
 
-                if self.workspace is not None and self.local_rank == 0:
-                    self.save_checkpoint(full=True, best=False)
+            if self.workspace is not None and self.local_rank == 0:
+                self.save_checkpoint(full=True, best=False)
 
-                if self.epoch % self.eval_interval == 0:
-                    self.evaluate_one_epoch(valid_loader)
-                    self.save_checkpoint(full=False, best=True)
+            if self.epoch % self.eval_interval == 0:
+                self.evaluate_one_epoch(valid_loader)
+                self.save_checkpoint(full=False, best=True)
 
-                # Mine: добавил отрисовку видео каждые 5 эпох
-                # if epoch % 5 == 0:
-                # test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
-                # self.test(test_loader)
-                p.step()
+            # Mine: добавил отрисовку видео каждые 5 эпох
+            # if epoch % 5 == 0:
+            # test_loader = NeRFDataset(self.opt, device=self.device, type='test', H=self.opt.H, W=self.opt.W, size=100).dataloader()
+            # self.test(test_loader)
 
-            end_t = time.time()
+        end_t = time.time()
 
-        p.export_chrome_trace("result.json")
-        print(p.key_averages().table(sort_by="self_cuda_time_total", row_limit=-1))
         self.log(f"[INFO] training takes {(end_t - start_t)/ 60:.4f} minutes.")
 
         if self.use_tensorboardX and self.local_rank == 0:

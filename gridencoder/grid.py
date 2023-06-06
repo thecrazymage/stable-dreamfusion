@@ -67,27 +67,24 @@ class _grid_encode(Function):
     @custom_bwd
     def backward(ctx, grad):
         print("I was here - 3!")
-        import torch.autograd.profiler as profiler
-        with profiler.record_function("INIT - 3.1"):
-            inputs, embeddings, offsets, dy_dx = ctx.saved_tensors
-            B, D, C, L, S, H, gridtype, interpolation = ctx.dims
-            align_corners = ctx.align_corners
+        inputs, embeddings, offsets, dy_dx = ctx.saved_tensors
+        B, D, C, L, S, H, gridtype, interpolation = ctx.dims
+        align_corners = ctx.align_corners
 
-            # grad: [B, L * C] --> [L, B, C]
-            grad = grad.view(B, L, C).permute(1, 0, 2).contiguous()
+        # grad: [B, L * C] --> [L, B, C]
+        grad = grad.view(B, L, C).permute(1, 0, 2).contiguous()
 
-            grad_embeddings = torch.zeros_like(embeddings)
+        grad_embeddings = torch.zeros_like(embeddings)
 
-            if dy_dx is not None:
-                grad_inputs = torch.zeros_like(inputs, dtype=embeddings.dtype)
-            else:
-                grad_inputs = None
+        if dy_dx is not None:
+            grad_inputs = torch.zeros_like(inputs, dtype=embeddings.dtype)
+        else:
+            grad_inputs = None
 
-        with profiler.record_function("INIT - 3.2"):
-            _backend.grid_encode_backward(grad, inputs, embeddings, offsets, grad_embeddings, B, D, C, L, S, H, dy_dx, grad_inputs, gridtype, align_corners, interpolation)
+        _backend.grid_encode_backward(grad, inputs, embeddings, offsets, grad_embeddings, B, D, C, L, S, H, dy_dx, grad_inputs, gridtype, align_corners, interpolation)
 
-            if dy_dx is not None:
-                grad_inputs = grad_inputs.to(inputs.dtype)
+        if dy_dx is not None:
+            grad_inputs = grad_inputs.to(inputs.dtype)
 
         return grad_inputs, grad_embeddings, None, None, None, None, None, None, None
         
