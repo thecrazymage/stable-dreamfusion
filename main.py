@@ -108,6 +108,8 @@ if __name__ == '__main__':
         from nerf.network import NeRFNetwork
     elif opt.backbone == 'grid':
         from nerf.network_grid import NeRFNetwork
+    elif opt.backbone == 'voxel_grid':
+        from nerf.network_voxel_grid import NeRFNetwork
     else:
         raise NotImplementedError(f'--backbone {opt.backbone} is not implemented!')
 
