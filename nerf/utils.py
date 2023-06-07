@@ -199,6 +199,7 @@ class Trainer(object):
 
         # Mine: количество дополнительных шагов
         self.add_steps = opt.steps
+        self.one_epoch_times = []
     
         model.to(self.device)
         if self.world_size > 1:
@@ -544,7 +545,7 @@ class Trainer(object):
 
         end_t = time.time()
 
-        self.log(f"[INFO] training takes {(end_t - start_t)/ 60:.4f} minutes.")
+        self.log(f"[INFO] training takes {(end_t - start_t)/ 60:.4f} minutes. Mean time for 1 epoch takes {np.mean(self.one_epoch_times):.4f}.")
 
         if self.use_tensorboardX and self.local_rank == 0:
             self.writer.close()
@@ -954,6 +955,7 @@ class Trainer(object):
                 self.lr_scheduler.step()
 
         end_one_epoch = time.time()
+        self.one_epoch_times.append((end_one_epoch - start_one_epoch) / 60)
         self.log(f"==> Finished Epoch {self.epoch}. It takes {(end_one_epoch - start_one_epoch) / 60:.4f} minutes.")
 
     def evaluate_one_epoch(self, loader, name=None):
