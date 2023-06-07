@@ -1,6 +1,7 @@
 import numpy as np
 
 import torch
+import time
 import torch.nn as nn
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
@@ -67,6 +68,11 @@ class _grid_encode(Function):
     @custom_bwd
     def backward(ctx, grad):
         print("I was here - 3!")
+
+
+        torch.cuda.synchronize()
+        start_time = time.time()
+
         inputs, embeddings, offsets, dy_dx = ctx.saved_tensors
         B, D, C, L, S, H, gridtype, interpolation = ctx.dims
         align_corners = ctx.align_corners
@@ -86,8 +92,11 @@ class _grid_encode(Function):
         if dy_dx is not None:
             grad_inputs = grad_inputs.to(inputs.dtype)
 
+        torch.cuda.synchronize()
+        end_time = time.time()
+        print(f"Backward from grid.py (num 3) takes = {end_time - start_time} s.")
+
         return grad_inputs, grad_embeddings, None, None, None, None, None, None, None
-        
 
 
 grid_encode = _grid_encode.apply

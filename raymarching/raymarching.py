@@ -298,7 +298,10 @@ class _composite_rays_train(Function):
     @custom_bwd
     def backward(ctx, grad_weights, grad_weights_sum, grad_depth, grad_image):
         print("I was here - 4!")
-        
+
+        torch.cuda.synchronize()
+        start_time = time.time()
+
         grad_weights = grad_weights.contiguous()
         grad_weights_sum = grad_weights_sum.contiguous()
         grad_depth = grad_depth.contiguous()
@@ -311,6 +314,10 @@ class _composite_rays_train(Function):
         grad_rgbs = torch.zeros_like(rgbs)
 
         get_backend().composite_rays_train_backward(grad_weights, grad_weights_sum, grad_depth, grad_image, sigmas, rgbs, ts, rays, weights_sum, depth, image, M, N, T_thresh, grad_sigmas, grad_rgbs)
+
+        torch.cuda.synchronize()
+        end_time = time.time()
+        print(f"Backward from raymarching.py (num 4) takes = {end_time - start_time} s.")
 
         return grad_sigmas, grad_rgbs, None, None, None
 
