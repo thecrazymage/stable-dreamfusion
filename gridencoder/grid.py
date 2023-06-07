@@ -67,7 +67,7 @@ class _grid_encode(Function):
     #@once_differentiable
     @custom_bwd
     def backward(ctx, grad):
-        print("I was here - 3!")
+        print("\tI was here - 3!")
 
 
         torch.cuda.synchronize()
@@ -94,7 +94,7 @@ class _grid_encode(Function):
 
         torch.cuda.synchronize()
         end_time = time.time()
-        print(f"Backward from grid.py (num 3) takes = {end_time - start_time} s.")
+        print(f"\tBackward from grid.py (num 3) takes = {end_time - start_time} s.")
 
         return grad_inputs, grad_embeddings, None, None, None, None, None, None, None
 
